@@ -42,7 +42,7 @@ class DTW_MDM_Temp(BaseEstimator, ClassifierMixin):
         Tolerance between two consecutive mean trajectories
     size_mean_traj : int
         The number of points on the mean trajectory
-    size_mean_traj : int
+    size_window : int
         The size of the windows used to create the n_trajectories
     overlap : int
         The overlap of each window used to create the n_trajectories
@@ -452,7 +452,7 @@ class DTW_MDM_Temp(BaseEstimator, ClassifierMixin):
 
     def predict_proba(self, X):
         """
-         Get the predictions.
+         Probability estimates.
 
         Parameters
         ----------
@@ -461,8 +461,9 @@ class DTW_MDM_Temp(BaseEstimator, ClassifierMixin):
 
         Returns
         -------
-        pred : ndarray, shape (n_matrices,)
-            Predictions for each EEG according to the closest mean trajectory.
+        T : ndarray, shape (n_matrices,)
+            Returns the probability of the sample for each class in the model,
+            where classes are ordered as they are in ``self.classes_``.
         """
 
         # We start by preprocessing the raw EEg to create the trajectories
@@ -483,14 +484,48 @@ class DTW_MDM_Temp(BaseEstimator, ClassifierMixin):
 
 
 class PT_MDM(BaseEstimator, ClassifierMixin):
+    """Classification using the Riemannian mean to compute the mean trajectory
+
+    Classification of covariances trajectories. First, the trajectories are created by cutting the original time series in smaller windows of size size_window.
+    One covariance matrix is computed per window to form a trajectory. Then, for each class, the mean trajectory is computed by averaging each point
+    using the Riemannain mean. Then, the classification uses a minimum distance to mean to affect the new trajectory
+    to the closest average.
+
+    Parameters
+    ------------
+    manifold : pymanopt.manifold
+        The manifold on which the data lies on
+    size_window : int
+        The size of the windows used to create the n_trajectories
+    cov_estimator : str, default = "scm"
+        The covariance estimator used to estimate the covariance of each window on the trajectories. See pyriemann's doc
+    """
     def __init__(self, manifold,size_window,cov_estimator):
+        """Init.
+        """
         self.manifold = manifold
         self.size_window = size_window
-        self.overlap = 0
         self.cov_estimator = cov_estimator
         self.fgda = FGDA()
 
     def get_temporal_trajectories(self, X, width_bins, overlap):
+        """ Creates the subwindows of X in order to compute the covariance trajectories.
+
+        Parameters
+        -------------
+        X : array_like of size (n_channels, N)
+            The original time series
+        width_bins : int
+            The size of the windows that will be extracted from X
+        overlap : int
+            The overlap that will be used to create the windows
+
+        Returns
+        -------------
+        traj : array_like of size (n_windows, n_channels, width_bins)
+            The array containing all the windows extracted
+
+        """
         traj = []
         t = 0
         N = X.shape[1]
@@ -584,8 +619,21 @@ class PT_MDM(BaseEstimator, ClassifierMixin):
         return all_traj_filtred
 
     def compute_mean_traj(self, X):
+        """Compute the mean trajectory by averaging each point using the Riemannain mean.
+
+        Parameters
+        ----------
+        X : ndarray, shape (n_trajectories, n_matrices, n_channels, n_channels)
+            Set of trajectories of SPD matrices.
+
+        Returns
+        -------
+        mean_traj : ndarray, shape (n_matrices, n_channels, n_channels)
+            The mean trajectory.
+        """
         n = X.shape[1]
-        return np.array([mean_riemann(X[:, k]) for k in range(n)])
+        mean_traj = np.array([mean_riemann(X[:, k]) for k in range(n)])
+        return mean_traj
 
 
     def fit(self, X, y):
@@ -606,9 +654,10 @@ class PT_MDM(BaseEstimator, ClassifierMixin):
 
         # We start by getting the different classes
         self.classes_ = np.unique(y)
-        # print("Preprocessing the data to create the trajectories of covariances matrices...")
+
+        # Then we proprocess the data
         cov_traj = self.preprocess_data(X, y)
-        # print("Preprocessing done !")
+
         # We can then compute the mean trajectory for each class
         self.mean_traj = Parallel(n_jobs=-1)(
             delayed(self.compute_mean_traj)(cov_traj[y == ll])
@@ -619,8 +668,25 @@ class PT_MDM(BaseEstimator, ClassifierMixin):
 
 
     def distance_traj(self, X, Y):
+        """Compute the distance from a trajectory to another
+
+        Parameters
+        ----------
+        X : ndarray, shape (n_matrices, n_channels, n_channels)
+            First trajectory of SPD matrices.
+
+        Y : ndarray, shape (n_matrices, n_channels, n_channels)
+            Second trajectory of SPD matrices.
+
+        Returns
+        -------
+        d : int
+            The distance between the first and the second trajectory.
+
+        """
         n = len(X)
-        return np.sum([distance_riemann(X[i], Y[i]) ** 2 for i in range(n)])
+        d = np.sum([distance_riemann(X[i], Y[i]) ** 2 for i in range(n)])
+        return d
 
     def predict(self, X):
         """
@@ -652,7 +718,7 @@ class PT_MDM(BaseEstimator, ClassifierMixin):
 
     def predict_proba(self, X):
         """
-         Get the predictions.
+         Probability estimates.
 
         Parameters
         ----------
@@ -661,207 +727,9 @@ class PT_MDM(BaseEstimator, ClassifierMixin):
 
         Returns
         -------
-        pred : ndarray, shape (n_matrices,)
-            Predictions for each EEG according to the closest mean trajectory.
-        """
-
-        # We start by preprocessing the raw EEg to create the trajectories
-        cov_traj = self.preprocess_data(X)
-
-        # For each trajectory, we compute the Riemannian DTW distance between the trajectory
-        # and the mean trajectory of each class and then select the smallest distance
-        nb_traj = cov_traj.shape[0]
-        nb_classes = len(self.classes_)
-        proba = np.zeros((nb_traj, nb_classes))
-        dist = np.zeros((nb_traj,nb_classes))
-        for i in range(nb_traj):
-            dist[i] = [
-                self.distance_traj(cov_traj[i], self.mean_traj[j]) for j in range(nb_classes)
-            ]
-        return softmax(-np.array(dist) ** 2)
-
-class traj_MDM_E(BaseEstimator, ClassifierMixin):
-    def __init__(self):
-        pass
-
-    def get_temporal_trajectories(self, X, width_bins, overlap):
-        traj = []
-        t = 0
-        N = X.shape[1]
-        while t < N:
-            traj.append(X[:, t : (t + width_bins)])
-            t += width_bins - overlap
-        #return traj
-        return np.array(traj[:-1])
-
-    def preprocess_data(self, X, y=None):
-        """
-        if not(y is None):
-            cov = Covariances(estimator=self.cov_estimator).transform(X)
-            self.fgda.fit(cov,y)
-        """
-        traj_temp = []
-        for i in range(X.shape[0]):
-            traj_temp.append(self.get_temporal_trajectories(X[i], self.size_window, self.overlap))
-        traj_temp = np.array(traj_temp)
-
-        (nb_traj, length_traj, nb_sensors, length_EGG) = traj_temp.shape
-        all_traj = np.zeros((nb_traj, length_traj, nb_sensors, nb_sensors))
-
-        for j in range(length_traj):
-            all_traj[:, j] = Covariances(estimator=self.cov_estimator).transform(
-                traj_temp[:, j, :, :]
-            )
-        """
-        all_traj_filtred = self.fgda.transform(
-            np.reshape(
-                all_traj,
-                (
-                    all_traj.shape[0] * all_traj.shape[1],
-                    all_traj.shape[2],
-                    all_traj.shape[2],
-                ),
-            )
-        )
-        all_traj_filtred = np.reshape(
-            all_traj_filtred,
-            (
-                all_traj.shape[0],
-                all_traj.shape[1],
-                all_traj.shape[2],
-                all_traj.shape[2],
-            ),
-        )
-        """
-        if y is None:
-            all_traj_filtred = self.fgda.transform(
-                np.reshape(
-                    all_traj,
-                    (
-                        all_traj.shape[0] * all_traj.shape[1],
-                        all_traj.shape[2],
-                        all_traj.shape[2],
-                    ),
-                )
-            )
-            all_traj_filtred = np.reshape(
-                all_traj_filtred,
-                (
-                    all_traj.shape[0],
-                    all_traj.shape[1],
-                    all_traj.shape[2],
-                    all_traj.shape[2],
-                ),
-            )
-        else:
-            big_y = np.array(
-                [y[i] for i in range(len(y)) for j in range(all_traj.shape[1])]
-            )
-            all_traj_filtred = self.fgda.fit_transform(
-                np.reshape(
-                    all_traj,
-                    (
-                        all_traj.shape[0] * all_traj.shape[1],
-                        all_traj.shape[2],
-                        all_traj.shape[2],
-                    ),
-                ),
-                big_y,
-            )
-            all_traj_filtred = np.reshape(
-                all_traj_filtred,
-                (
-                    all_traj.shape[0],
-                    all_traj.shape[1],
-                    all_traj.shape[2],
-                    all_traj.shape[2],
-                ),
-            )
-        """
-        if self.all_fgda is None:
-            self.all_fgda = [FGDA() for i in range(length_traj)]
-
-        for j in range(length_traj):
-            if y is None:
-                all_traj[:, j] = self.all_fgda[j].transform(Covariances(estimator=self.cov_estimator).transform(traj_temp[:, j, :, :]))
-            else:
-                all_traj[:, j] = self.all_fgda[j].fit_transform(Covariances(estimator=self.cov_estimator).transform(traj_temp[:, j, :, :]),y)
-        """
-        return all_traj_filtred
-
-    def compute_mean_traj(self, X):
-        return np.mean(X, axis=0)
-
-    def fit(self, X, y):
-        """Fit the model
-        Parameters
-        ----------
-        X : ndarray, shape (n_trajectories, n_matrices, n_channels, n_channels)
-            Set of trajectories of SPD matrices.
-        y : ndarray, shape (n_trajectories,)
-            Labels for each trajectory.
-
-        Returns
-        -------
-        self : traj_MDM instance
-            The traj_MDM instance.
-        """
-
-        self.classes_ = np.unique(y)
-
-        # self.mean_traj =  Parallel(n_jobs=-1)(
-        #    delayed(self.compute_mean_traj_DTW)(X[y == ll],np.where(self.classes_ == ll)[0][0]) for ll in self.classes_
-        # )
-        cov_traj = self.preprocess_data(X, y)
-
-        self.mean_traj = []
-        for ll in self.classes_:
-            self.mean_traj.append(self.compute_mean_traj(cov_traj[y == ll]))
-        # self.loss = results[1]
-        return self
-
-    def distance_traj(self, X, Y):
-        n = len(X)
-        return np.sum([np.linalg.norm(X[i] - Y[i]) ** 2 for i in range(n)])
-
-    def predict(self, X):
-        """
-         Get the predictions.
-
-        Parameters
-        ----------
-        X : ndarray, shape (n_trajectories, n_matrices, n_channels, n_channels)
-            Set of trajectories of SPD matrices.
-
-        Returns
-        -------
-        pred : ndarray of int, shape (n_matrices,)
-            Predictions for each trajectory according to the closest mean trajectory.
-        """
-        cov_traj = self.preprocess_data(X)
-
-        nb_traj = cov_traj.shape[0]
-        nb_classes = len(self.classes_)
-        label = []
-        for i in range(nb_traj):
-            dist = [
-                self.distance_traj(cov_traj[i], self.mean_traj[j]) for j in range(nb_classes)
-            ]
-            label.append(self.classes_[np.argmin(dist)])
-        return label
-    def predict_proba(self, X):
-        """
-         Get the predictions.
-
-        Parameters
-        ----------
-        X : ndarray, shape (n_EEG, n_channels, size_EEG)
-            Set of EEG.
-
-        Returns
-        -------
-        pred : ndarray, shape (n_matrices,)
-            Predictions for each EEG according to the closest mean trajectory.
+        T : ndarray, shape (n_matrices,)
+            Returns the probability of the sample for each class in the model,
+            where classes are ordered as they are in ``self.classes_``.
         """
 
         # We start by preprocessing the raw EEg to create the trajectories
