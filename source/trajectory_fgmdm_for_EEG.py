@@ -20,10 +20,10 @@ from joblib import Parallel, delayed
 
 import scipy.stats as stat
 
-from utils import *
+from source.utils import *
 
 
-class DTW_MDM_Temp(BaseEstimator, ClassifierMixin):
+class DTW_MDM(BaseEstimator, ClassifierMixin):
     """Classification using the Riemannian DTW to compute the mean trajectory
 
     Classification of covariances trajectories. First, the trajectories are created by cutting the original time series in smaller windows of size size_window.
@@ -508,7 +508,7 @@ class PT_MDM(BaseEstimator, ClassifierMixin):
         self.cov_estimator = cov_estimator
         self.fgda = FGDA()
 
-    def get_temporal_trajectories(self, X, width_bins, overlap):
+    def get_temporal_trajectories(self, X, width_bins):
         """ Creates the subwindows of X in order to compute the covariance trajectories.
 
         Parameters
@@ -517,8 +517,6 @@ class PT_MDM(BaseEstimator, ClassifierMixin):
             The original time series
         width_bins : int
             The size of the windows that will be extracted from X
-        overlap : int
-            The overlap that will be used to create the windows
 
         Returns
         -------------
@@ -531,7 +529,7 @@ class PT_MDM(BaseEstimator, ClassifierMixin):
         N = X.shape[1]
         while t < N:
             traj.append(X[:, t : (t + width_bins)])
-            t += width_bins - overlap
+            t += width_bins
         #return traj
         return np.array(traj[:-1])
 
@@ -554,7 +552,7 @@ class PT_MDM(BaseEstimator, ClassifierMixin):
         # We start by extracting all the subwindows of the main time series X to create the trajectories
         traj_temp = []
         for i in range(X.shape[0]):
-            traj_temp.append(self.get_temporal_trajectories(X[i], self.size_window, self.overlap))
+            traj_temp.append(self.get_temporal_trajectories(X[i], self.size_window))
         traj_temp = np.array(traj_temp)
 
         # Once the subwindows are extracted, we can compute one covariance matrix per sub window

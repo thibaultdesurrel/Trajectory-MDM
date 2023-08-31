@@ -18,7 +18,7 @@ from fastdtw import fastdtw
 
 import scipy.stats as stat
 
-from utils import *
+from source.utils import *
 
 class DTW_MDM(BaseEstimator, ClassifierMixin):
     """ Classification using the DTW to compute the mean trajectory
