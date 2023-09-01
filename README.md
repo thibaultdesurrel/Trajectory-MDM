@@ -20,7 +20,7 @@ moabb==0.4.6
 pymanopt==2.1.1
 scipy==1.10.1
 pyriemann==0.4
-sklearn==0.0.post7
+scikit-learn
 tqdm==4.65.0
 joblib==1.2.0
 ```
