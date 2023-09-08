@@ -20,8 +20,9 @@ import scipy.stats as stat
 
 from source.utils import *
 
+
 class DTW_MDM(BaseEstimator, ClassifierMixin):
-    """ Classification using the DTW to compute the mean trajectory
+    """Classification using the DTW to compute the mean trajectory
 
     Classification of covariances trajectories. For each class, the mean trajectory is computed using a iterative two step algorithm :
     First, a matching between each training trajectory and the current mean one is computed using DTW. Then, a weighted average is
@@ -41,6 +42,7 @@ class DTW_MDM(BaseEstimator, ClassifierMixin):
     optimizer : pymanopt.optimizer, default = pymanopt.optimizers.SteepestDescent
         The pymanopt optimizer used to solve the minimization problem
     """
+
     def __init__(
         self,
         manifold,
@@ -49,8 +51,7 @@ class DTW_MDM(BaseEstimator, ClassifierMixin):
         size_mean_traj,
         optimizer=pymanopt.optimizers.SteepestDescent(verbosity=0),
     ):
-        """Init.
-        """
+        """Init."""
         self.manifold = manifold
         self.nb_it = nb_it
         self.eps = eps
@@ -59,7 +60,7 @@ class DTW_MDM(BaseEstimator, ClassifierMixin):
         self.loss = None
 
     def random_trajectories(self, T, all_M):
-        """ Generate a random trajectory of SPD matrices of size T.
+        """Generate a random trajectory of SPD matrices of size T.
         The trajectory will we created along the geodesics of the successive matrices of all_M.
 
         Parameters
@@ -271,9 +272,8 @@ class DTW_MDM(BaseEstimator, ClassifierMixin):
         self.classes = np.unique(y)
 
         # We can then compute the mean trajectory for each class
-        results = Parallel(n_jobs = -1)(
-            delayed(self.compute_mean_traj_DTW)(X[y == ll])
-            for ll in self.classes
+        results = Parallel(n_jobs=-1)(
+            delayed(self.compute_mean_traj_DTW)(X[y == ll]) for ll in self.classes
         )
 
         # We can then treat the different outputs of self.compute_mean_traj_DTW
@@ -312,9 +312,8 @@ class DTW_MDM(BaseEstimator, ClassifierMixin):
         return label
 
 
-
 class PT_MDM(BaseEstimator, ClassifierMixin):
-    """ Classification using the Riemannian mean to compute the mean trajectory
+    """Classification using the Riemannian mean to compute the mean trajectory
 
     Classification of covariances trajectories. For each class, the mean trajectory is computed by averaging each point
     using the Riemannain mean. Then, the classification uses a minimum distance to mean to affect the new trajectory
@@ -327,8 +326,7 @@ class PT_MDM(BaseEstimator, ClassifierMixin):
     """
 
     def __init__(self, manifold):
-        """Init.
-        """
+        """Init."""
         self.manifold = manifold
 
     def compute_mean_traj(self, X):

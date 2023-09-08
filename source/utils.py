@@ -7,17 +7,21 @@ from fastdtw import fastdtw
 
 def r_fastdtw(x, y):
     return fastdtw(x, y, dist=distance_riemann)
-    
-def dist_F(X,Y):
-    return np.linalg.norm(X-Y,ord = 'fro')
+
+
+def dist_F(X, Y):
+    return np.linalg.norm(X - Y, ord="fro")
+
 
 def exp(M, v):
     p_inv_tv = np.linalg.solve(M, v)
     return M @ expm(p_inv_tv)
 
+
 def multihconj(A):
     """Vectorized matrix conjugate transpose."""
     return np.conjugate(multitransp(A))
+
 
 def multilogm(A, *, positive_definite=False):
     """Vectorized matrix logarithm."""
@@ -28,6 +32,7 @@ def multilogm(A, *, positive_definite=False):
     w = np.expand_dims(np.log(w), axis=-1)
     logmA = v @ (w * multihconj(v))
     return np.real(logmA)
+
 
 def multitransp(A):
     """Vectorized matrix transpose.

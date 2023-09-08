@@ -59,7 +59,7 @@ class DTW_MDM(BaseEstimator, ClassifierMixin):
         eps,
         size_mean_traj,
         size_window,
-        overlap = 0,
+        overlap=0,
         optimizer=pymanopt.optimizers.SteepestDescent(verbosity=0),
         cov_estimator="scm",
     ):
@@ -76,7 +76,7 @@ class DTW_MDM(BaseEstimator, ClassifierMixin):
         self.fgda = FGDA()
 
     def get_temporal_trajectories(self, X, width_bins, overlap):
-        """ Creates the subwindows of X in order to compute the covariance trajectories.
+        """Creates the subwindows of X in order to compute the covariance trajectories.
 
         Parameters
         -------------
@@ -103,7 +103,7 @@ class DTW_MDM(BaseEstimator, ClassifierMixin):
         return np.array(traj[:-1])
 
     def preprocess_data(self, X, y=None):
-        """ Preprocess the data in order to create the trajectories of covariance matrices.
+        """Preprocess the data in order to create the trajectories of covariance matrices.
 
         Parameters
         -------------
@@ -121,7 +121,9 @@ class DTW_MDM(BaseEstimator, ClassifierMixin):
         # We start by extracting all the subwindows of the main time series X to create the trajectories
         traj_temp = []
         for i in range(X.shape[0]):
-            traj_temp.append(self.get_temporal_trajectories(X[i], self.size_window, self.overlap))
+            traj_temp.append(
+                self.get_temporal_trajectories(X[i], self.size_window, self.overlap)
+            )
         traj_temp = np.array(traj_temp)
 
         # Once the subwindows are extracted, we can compute one covariance matrix per sub window
@@ -226,7 +228,6 @@ class DTW_MDM(BaseEstimator, ClassifierMixin):
             )
         traj = np.array(traj)
         return traj
-
 
     def create_cost(self, all_traj, A, f):
         """Create the cost function as well as its Riemannian gradient associated to our problem
@@ -403,7 +404,7 @@ class DTW_MDM(BaseEstimator, ClassifierMixin):
         cov_traj = self.preprocess_data(X, y)
         # print("Preprocessing done !")
         # We can then compute the mean trajectory for each class
-        #print(cov_traj.shape)
+        # print(cov_traj.shape)
         results = Parallel(n_jobs=-1)(
             delayed(self.compute_mean_traj_DTW)(cov_traj[y == ll])
             for ll in self.classes_
@@ -474,13 +475,12 @@ class DTW_MDM(BaseEstimator, ClassifierMixin):
         nb_traj = cov_traj.shape[0]
         nb_classes = len(self.classes_)
         proba = np.zeros((nb_traj, nb_classes))
-        dist = np.zeros((nb_traj,nb_classes))
+        dist = np.zeros((nb_traj, nb_classes))
         for i in range(nb_traj):
             dist[i] = [
-                        r_fastdtw(cov_traj[i], self.mean_traj[j])[0] for j in range(nb_classes)
-                    ]
+                r_fastdtw(cov_traj[i], self.mean_traj[j])[0] for j in range(nb_classes)
+            ]
         return softmax(-np.array(dist) ** 2)
-
 
 
 class PT_MDM(BaseEstimator, ClassifierMixin):
@@ -500,16 +500,16 @@ class PT_MDM(BaseEstimator, ClassifierMixin):
     cov_estimator : str, default = "scm"
         The covariance estimator used to estimate the covariance of each window on the trajectories. See pyriemann's doc
     """
-    def __init__(self, manifold,size_window,cov_estimator):
-        """Init.
-        """
+
+    def __init__(self, manifold, size_window, cov_estimator):
+        """Init."""
         self.manifold = manifold
         self.size_window = size_window
         self.cov_estimator = cov_estimator
         self.fgda = FGDA()
 
     def get_temporal_trajectories(self, X, width_bins):
-        """ Creates the subwindows of X in order to compute the covariance trajectories.
+        """Creates the subwindows of X in order to compute the covariance trajectories.
 
         Parameters
         -------------
@@ -530,11 +530,11 @@ class PT_MDM(BaseEstimator, ClassifierMixin):
         while t < N:
             traj.append(X[:, t : (t + width_bins)])
             t += width_bins
-        #return traj
+        # return traj
         return np.array(traj[:-1])
 
     def preprocess_data(self, X, y=None):
-        """ Preprocess the data in order to create the trajectories of covariance matrices.
+        """Preprocess the data in order to create the trajectories of covariance matrices.
 
         Parameters
         -------------
@@ -633,7 +633,6 @@ class PT_MDM(BaseEstimator, ClassifierMixin):
         mean_traj = np.array([mean_riemann(X[:, k]) for k in range(n)])
         return mean_traj
 
-
     def fit(self, X, y):
         """Fit the model
 
@@ -658,12 +657,10 @@ class PT_MDM(BaseEstimator, ClassifierMixin):
 
         # We can then compute the mean trajectory for each class
         self.mean_traj = Parallel(n_jobs=-1)(
-            delayed(self.compute_mean_traj)(cov_traj[y == ll])
-            for ll in self.classes_
+            delayed(self.compute_mean_traj)(cov_traj[y == ll]) for ll in self.classes_
         )
 
         return self
-
 
     def distance_traj(self, X, Y):
         """Compute the distance from a trajectory to another
@@ -708,11 +705,11 @@ class PT_MDM(BaseEstimator, ClassifierMixin):
         label = []
         for i in range(nb_traj):
             dist = [
-                self.distance_traj(cov_traj[i], self.mean_traj[j]) for j in range(nb_classes)
+                self.distance_traj(cov_traj[i], self.mean_traj[j])
+                for j in range(nb_classes)
             ]
             label.append(self.classes_[np.argmin(dist)])
         return label
-
 
     def predict_proba(self, X):
         """
@@ -738,9 +735,10 @@ class PT_MDM(BaseEstimator, ClassifierMixin):
         nb_traj = cov_traj.shape[0]
         nb_classes = len(self.classes_)
         proba = np.zeros((nb_traj, nb_classes))
-        dist = np.zeros((nb_traj,nb_classes))
+        dist = np.zeros((nb_traj, nb_classes))
         for i in range(nb_traj):
             dist[i] = [
-                self.distance_traj(cov_traj[i], self.mean_traj[j]) for j in range(nb_classes)
+                self.distance_traj(cov_traj[i], self.mean_traj[j])
+                for j in range(nb_classes)
             ]
         return softmax(-np.array(dist) ** 2)
