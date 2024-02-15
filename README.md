@@ -1,6 +1,6 @@
 # Averaging trajectories on the manifold of covariance matrices
 
-This repository contains the code of the methods proposed in _Averaging trajectories on the manifold of covariance matrices_.
+This repository contains the code of the methods proposed in _Averaging trajectories on the manifold of symmetric positive definite matrices_.
 
 In this repository, we have two notebooks :
 - [Trajectory_MDM_BCI_data](Trajectory_MDM_BCI_data.ipynb) : In this notebook, you can find an example of our two proposed algorithms _PT-MDM_ and _DTW_MDM_ tested on a BCI dataset from MOABB [1].
